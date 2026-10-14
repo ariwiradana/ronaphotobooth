@@ -2179,13 +2179,13 @@ function TransactionForm({
             placeholder="Contoh: beli kertas foto / meja lipat"
           />
         </Field>
-        <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5">
+        {/* <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5">
           <p className="text-xs font-medium text-zinc-500">Akun kas</p>
           <p className="mt-1 text-sm font-semibold">Kas Rona</p>
           <p className="mt-1 text-[11px] text-zinc-500">
             Semua transaksi bisnis masuk ke satu kas utama.
           </p>
-        </div>
+        </div> */}
         <Field label="Dibayar oleh / sumber">
           <select name="paidBy" defaultValue={initial?.paidBy || "Kas bisnis"}>
             <option>Kas bisnis</option>

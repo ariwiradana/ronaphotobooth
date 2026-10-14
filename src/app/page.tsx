@@ -377,7 +377,12 @@ export default function Home() {
     .filter((t) => t.direction === "Masuk" && t.affectsCash !== false)
     .reduce((s, t) => s + t.amount, 0);
   const totalOut = data.transactions
-    .filter((t) => t.direction === "Keluar" && t.affectsCash !== false)
+    .filter(
+      (t) =>
+        t.direction === "Keluar" &&
+        t.affectsCash !== false &&
+        t.paidBy === "Kas bisnis",
+    )
     .reduce((s, t) => s + t.amount, 0);
   const cashBalance = totalReceived - totalOut;
   const outstanding = data.reimbursements

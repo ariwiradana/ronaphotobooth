@@ -113,74 +113,31 @@ const dateLabel = (d: string) =>
 
 const seed: State = {
   partners: [
-    { id: "p1", name: "Saya" },
-    { id: "p2", name: "Partner" },
+    { id: "p1", name: "Partner 1" },
+    { id: "p2", name: "Partner 2" },
   ],
+
   bookings: [
     {
-      id: "RNA-026",
-      client: "Ayu & Putra",
-      phone: "081234567890",
-      event: "Wedding Reception",
-      date: "2026-10-18",
-      venue: "Bali",
-      packageName: "Print Premium",
-      total: 3500000,
-      paid: 1500000,
-      status: "Dikonfirmasi",
-      notes: "",
-    },
-    {
-      id: "RNA-027",
-      client: "Maya Pratiwi",
+      id: "RNA-001",
+      client: "Contoh Klien",
       phone: "",
-      event: "Birthday Party",
-      date: "2026-10-21",
-      venue: "Bali",
-      packageName: "Digital Booth",
-      total: 1800000,
+      event: "Event",
+      date: "",
+      venue: "",
+      packageName: "Paket Photobooth",
+      total: 0,
       paid: 0,
       status: "Inquiry",
       notes: "",
     },
   ],
-  transactions: [
-    {
-      id: id(),
-      date: today(),
-      direction: "Masuk",
-      category: "Pembayaran booking",
-      description: "DP RNA-026",
-      amount: 1500000,
-      account: "Kas Rona",
-      paidBy: "Klien",
-    },
-  ],
-  reimbursements: [
-    {
-      id: "REI-001",
-      partner: "Saya",
-      date: today(),
-      description: "Pembelian printer untuk Rona",
-      amount: 4500000,
-      paid: 0,
-      status: "Menunggu",
-      type: "Aset",
-    },
-  ],
-  assets: [
-    {
-      id: "AST-001",
-      name: "Printer foto",
-      category: "Printer",
-      date: today(),
-      price: 4500000,
-      paidBy: "Saya",
-      reimbursementId: "REI-001",
-      condition: "Baik",
-      location: "Storage",
-    },
-  ],
+
+  transactions: [],
+
+  reimbursements: [],
+
+  assets: [],
 };
 
 function readState(): State {

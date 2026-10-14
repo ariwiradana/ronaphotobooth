@@ -2238,8 +2238,11 @@ function TransactionForm({
             <option>Operasional</option>
             <option>Pembayaran booking</option>
             <option>Pemasukan lain</option>
+            <option>Gaji crew</option>
             <option>Transportasi</option>
             <option>Perlengkapan print</option>
+            <option>Sewa alat</option>
+            <option>Subscription</option>
             <option>Maintenance</option>
             <option>Refund klien</option>
             <option>Lainnya</option>
@@ -2305,6 +2308,7 @@ function TransactionForm({
           />
         </span>
       </label>
+
       <p className="rounded-lg bg-zinc-50 p-3 text-xs text-zinc-500">
         Jangan centang untuk pengeluaran seperti transportasi, konsumsi, atau
         biaya operasional yang bukan aset.

@@ -60,6 +60,7 @@ type Transaction = {
   paidBy: string;
   linkedReimbursement?: string;
   linkedAssetId?: string;
+  autoReimbursementId?: string;
   affectsCash?: boolean;
 };
 type Reimbursement = {
@@ -490,6 +491,30 @@ export default function Home() {
         );
         return;
       }
+      const isPartnerPaidExpense =
+        direction === "Keluar" && paidBy !== "Kas bisnis" && paidBy !== "Klien";
+      const oldAutoReimbursement = old.autoReimbursementId
+        ? data.reimbursements.find((r) => r.id === old.autoReimbursementId)
+        : undefined;
+      if (
+        oldAutoReimbursement &&
+        !isPartnerPaidExpense &&
+        oldAutoReimbursement.paid > 0
+      ) {
+        alert(
+          "Reimburse untuk transaksi ini sudah dibayar sebagian. Selesaikan atau batalkan pembayaran reimburse terlebih dahulu sebelum mengganti sumber pembayaran.",
+        );
+        return;
+      }
+      if (oldAutoReimbursement && amount < oldAutoReimbursement.paid) {
+        alert(
+          "Nominal transaksi tidak boleh lebih kecil dari reimburse yang sudah dibayar.",
+        );
+        return;
+      }
+      const autoReimbursementId = isPartnerPaidExpense
+        ? old.autoReimbursementId || `REI-${String(Date.now()).slice(-5)}`
+        : undefined;
       const updated: Transaction = {
         ...old,
         date,
@@ -499,14 +524,46 @@ export default function Home() {
         amount,
         paidBy,
         account: "Kas Rona",
-        affectsCash: paidBy === "Kas bisnis" || paidBy === "Klien",
+        autoReimbursementId,
+        affectsCash:
+          direction === "Masuk"
+            ? paidBy === "Kas bisnis" || paidBy === "Klien"
+            : paidBy === "Kas bisnis",
       };
-      setData((prev) => ({
-        ...prev,
-        transactions: prev.transactions.map((t) =>
-          t.id === editingTransaction ? updated : t,
-        ),
-      }));
+      setData((prev) => {
+        let reimbursements = prev.reimbursements;
+        if (oldAutoReimbursement && !isPartnerPaidExpense) {
+          reimbursements = reimbursements.filter(
+            (r) => r.id !== oldAutoReimbursement.id,
+          );
+        } else if (isPartnerPaidExpense) {
+          const existing = reimbursements.find(
+            (r) => r.id === autoReimbursementId,
+          );
+          const reimbursement: Reimbursement = {
+            id: autoReimbursementId!,
+            partner: paidBy,
+            date,
+            description: description || category,
+            amount: Math.max(amount, existing?.paid || 0),
+            paid: existing?.paid || 0,
+            status: existing?.status || "Menunggu",
+            type: category || "Operasional",
+          };
+          reimbursements = existing
+            ? reimbursements.map((r) =>
+                r.id === autoReimbursementId ? reimbursement : r,
+              )
+            : [reimbursement, ...reimbursements];
+        }
+        return {
+          ...prev,
+          transactions: prev.transactions.map((t) =>
+            t.id === editingTransaction ? updated : t,
+          ),
+          reimbursements,
+        };
+      });
       setModal(null);
       setEditingTransaction(null);
       return;
@@ -519,12 +576,14 @@ export default function Home() {
     const assetId = recordAsAsset
       ? `AST-${String(Date.now()).slice(-5)}`
       : undefined;
-    const reimbursementId =
-      recordAsAsset && paidBy !== "Kas bisnis" && paidBy !== "Klien"
-        ? `REI-${String(Date.now() + 1).slice(-5)}`
-        : undefined;
+    const isPartnerPaidExpense =
+      direction === "Keluar" && paidBy !== "Kas bisnis" && paidBy !== "Klien";
+    const reimbursementId = isPartnerPaidExpense
+      ? `REI-${String(Date.now() + 1).slice(-5)}`
+      : undefined;
+    const transactionId = id();
     const tx: Transaction = {
-      id: id(),
+      id: transactionId,
       date,
       direction,
       category: recordAsAsset ? "Pembelian aset" : category,
@@ -532,13 +591,14 @@ export default function Home() {
       amount,
       account: "Kas Rona",
       paidBy,
-      affectsCash: !(
-        recordAsAsset &&
-        paidBy !== "Kas bisnis" &&
-        paidBy !== "Klien"
-      ),
+      affectsCash:
+        direction === "Masuk"
+          ? paidBy === "Kas bisnis" || paidBy === "Klien"
+          : paidBy === "Kas bisnis",
       linkedAssetId: assetId,
-      linkedReimbursement: reimbursementId,
+      // Keep this link for the existing asset deletion/payment flow only.
+      linkedReimbursement: recordAsAsset ? reimbursementId : undefined,
+      autoReimbursementId: !recordAsAsset ? reimbursementId : undefined,
     };
     setData((prev) => {
       const assets = recordAsAsset
@@ -563,11 +623,13 @@ export default function Home() {
               id: reimbursementId,
               partner: paidBy,
               date,
-              description: `Pembelian aset: ${description}`,
+              description: recordAsAsset
+                ? `Pembelian aset: ${description}`
+                : description || category,
               amount,
               paid: 0,
               status: "Menunggu" as const,
-              type: "Aset",
+              type: recordAsAsset ? "Aset" : category || "Operasional",
             },
             ...prev.reimbursements,
           ]
@@ -701,10 +763,26 @@ export default function Home() {
       .filter(Boolean)
       .join("\n\n");
     if (!confirm(warning)) return;
+    if (tx.autoReimbursementId) {
+      const autoReimbursement = data.reimbursements.find(
+        (r) => r.id === tx.autoReimbursementId,
+      );
+      if (autoReimbursement?.paid) {
+        alert(
+          "Transaksi ini memiliki reimburse yang sudah dibayar. Hapus atau koreksi pembayaran reimburse terlebih dahulu.",
+        );
+        return;
+      }
+    }
     setData((prev) => {
       let reimbursements = prev.reimbursements;
       let assets = prev.assets;
       let transactions = prev.transactions.filter((t) => t.id !== tid);
+      if (tx.autoReimbursementId) {
+        reimbursements = reimbursements.filter(
+          (r) => r.id !== tx.autoReimbursementId,
+        );
+      }
       if (linkedAsset) {
         const rid = linkedAsset.reimbursementId;
         assets = assets.filter((a) => a.id !== linkedAsset.id);

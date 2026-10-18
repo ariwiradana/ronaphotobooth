@@ -26,6 +26,8 @@ import {
   RotateCcw,
   LogOut,
   CircleUserRound,
+  LucideChevronLeft,
+  LucideChevronRight,
 } from "lucide-react";
 
 type Tab =
@@ -126,7 +128,7 @@ const seed: State = {
       event: "Event",
       date: "",
       venue: "",
-      packageName: "Paket Photobooth",
+      packageName: "Digital Only",
       total: 0,
       paid: 0,
       status: "Inquiry",
@@ -277,6 +279,10 @@ export default function Home() {
   >("loading");
   const [canSync, setCanSync] = useState(false);
   const [search, setSearch] = useState("");
+  const [transactionDirectionFilter, setTransactionDirectionFilter] = useState<
+    "Semua" | "Masuk" | "Keluar"
+  >("Semua");
+  const [transactionPage, setTransactionPage] = useState(1);
   const [modal, setModal] = useState<
     "booking" | "transaction" | "reimbursement" | "asset" | "partner" | null
   >(null);
@@ -401,10 +407,33 @@ export default function Home() {
       .toLowerCase()
       .includes(search.toLowerCase()),
   );
-  const filteredTx = data.transactions.filter((t) =>
-    `${t.description} ${t.category} ${t.paidBy}`
+  const filteredTx = data.transactions.filter((t) => {
+    const matchesSearch = `${t.description} ${t.category} ${t.paidBy}`
       .toLowerCase()
-      .includes(search.toLowerCase()),
+      .includes(search.toLowerCase());
+    const matchesDirection =
+      transactionDirectionFilter === "Semua" ||
+      t.direction === transactionDirectionFilter;
+    return matchesSearch && matchesDirection;
+  });
+  const transactionPageSize = 10;
+  const sortedFilteredTx = filteredTx.slice().sort((a, b) => {
+    // Input type="date" stores dates as YYYY-MM-DD; sort newest date first.
+    const dateA = String(a.date || "");
+    const dateB = String(b.date || "");
+    const dateOrder = dateB.localeCompare(dateA);
+    if (dateOrder !== 0) return dateOrder;
+    // Keep the order deterministic when multiple transactions share a date.
+    return String(b.id || "").localeCompare(String(a.id || ""));
+  });
+  const totalTransactionPages = Math.max(
+    1,
+    Math.ceil(sortedFilteredTx.length / transactionPageSize),
+  );
+  const safeTransactionPage = Math.min(transactionPage, totalTransactionPages);
+  const paginatedTx = sortedFilteredTx.slice(
+    (safeTransactionPage - 1) * transactionPageSize,
+    safeTransactionPage * transactionPageSize,
   );
 
   function addBooking(form: FormData) {
@@ -448,7 +477,7 @@ export default function Home() {
             date: today(),
             direction: "Masuk",
             category: "Pembayaran booking",
-            description: `Pembayaran booking ${booking.id}`,
+            description: `Pembayaran booking ${booking.id} · ${booking.client}`,
             amount: paid - old.paid,
             account: "Kas Rona",
             paidBy: "Klien",
@@ -1049,7 +1078,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen lg:flex">
-      <aside className="hidden w-[248px] shrink-0 border-r border-zinc-200 bg-white p-5 lg:flex lg:flex-col">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] shrink-0 overflow-y-auto border-r border-zinc-200 bg-white p-5 lg:flex lg:flex-col">
         <div className="flex items-center gap-3 px-2 py-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-950 text-white">
             <Camera size={21} />
@@ -1101,7 +1130,7 @@ export default function Home() {
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1">
+      <main className="min-w-0 flex-1 lg:ml-[248px]">
         <header className="flex items-center justify-between border-b border-zinc-200 bg-white px-5 py-4 md:px-8">
           <div>
             <p className="text-xs text-zinc-400">Rona / Workspace</p>
@@ -1221,9 +1250,9 @@ export default function Home() {
                 <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
                   <div className="flex items-center justify-between border-b border-zinc-100 p-5">
                     <div>
-                      <h3 className="font-semibold">Booking terdekat</h3>
+                      <h3 className="font-semibold">Booking</h3>
                       <p className="mt-1 text-xs text-zinc-500">
-                        Jadwal event mendatang
+                        Ringkasan Jadwal Booking
                       </p>
                     </div>
                     <Button secondary onClick={() => setTab("Booking")}>
@@ -1351,7 +1380,10 @@ export default function Home() {
                     className="pl-9"
                     placeholder="Cari klien, event, kode..."
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setTransactionPage(1);
+                    }}
                   />
                 </div>
                 <Button secondary onClick={exportBookings}>
@@ -1462,17 +1494,37 @@ export default function Home() {
                     Saldo berjalan sederhana dari transaksi yang dicatat
                   </p>
                 </div>
-                <div className="relative w-full sm:max-w-xs">
-                  <Search
-                    className="absolute left-3 top-3 text-zinc-400"
-                    size={16}
-                  />
-                  <input
-                    className="pl-9"
-                    placeholder="Cari transaksi..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                  <select
+                    aria-label="Filter arah transaksi"
+                    className="w-full sm:w-40"
+                    value={transactionDirectionFilter}
+                    onChange={(e) => {
+                      setTransactionDirectionFilter(
+                        e.target.value as "Semua" | "Masuk" | "Keluar",
+                      );
+                      setTransactionPage(1);
+                    }}
+                  >
+                    <option value="Semua">Semua transaksi</option>
+                    <option value="Masuk">Kas masuk</option>
+                    <option value="Keluar">Kas keluar</option>
+                  </select>
+                  <div className="relative w-full sm:w-64">
+                    <Search
+                      className="absolute left-3 top-3 text-zinc-400"
+                      size={16}
+                    />
+                    <input
+                      className="pl-9"
+                      placeholder="Cari transaksi..."
+                      value={search}
+                      onChange={(e) => {
+                        setSearch(e.target.value);
+                        setTransactionPage(1);
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
               <div className="overflow-x-auto">
@@ -1495,67 +1547,104 @@ export default function Home() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredTx
-                      .slice()
-                      .reverse()
-                      .map((t) => (
-                        <tr key={t.id} className="border-t border-zinc-100">
-                          <td className="whitespace-nowrap px-4 py-4">
-                            {dateLabel(t.date)}
-                          </td>
-                          <td className="px-4 py-4 font-medium">
-                            {t.description}
-                          </td>
-                          <td className="px-4 py-4">{t.category}</td>
-                          <td className="px-4 py-4">
-                            {t.paidBy}
-                            <p className="mt-1 text-xs text-zinc-400">
-                              {t.account}
-                              {t.affectsCash === false
-                                ? " · Tidak memengaruhi saldo kas (dibayar pribadi)"
-                                : ""}
-                            </p>
-                          </td>
-                          <td className="px-4 py-4">
-                            <Pill
-                              tone={t.direction === "Masuk" ? "green" : "red"}
-                            >
-                              {t.direction}
-                            </Pill>
-                          </td>
-                          <td
-                            className={`whitespace-nowrap px-4 py-4 font-semibold ${t.direction === "Masuk" ? "text-emerald-700" : ""}`}
+                    {paginatedTx.map((t) => (
+                      <tr key={t.id} className="border-t border-zinc-100">
+                        <td className="whitespace-nowrap px-4 py-4">
+                          {dateLabel(t.date)}
+                        </td>
+                        <td className="px-4 py-4 font-medium">
+                          {t.description}
+                        </td>
+                        <td className="px-4 py-4">{t.category}</td>
+                        <td className="px-4 py-4">
+                          {t.paidBy}
+                          <p className="mt-1 text-xs text-zinc-400">
+                            {t.account}
+                            {t.affectsCash === false
+                              ? " · Tidak memengaruhi saldo kas (dibayar pribadi)"
+                              : ""}
+                          </p>
+                        </td>
+                        <td className="px-4 py-4">
+                          <Pill
+                            tone={t.direction === "Masuk" ? "green" : "red"}
                           >
-                            {t.direction === "Masuk" ? "+" : "−"}
-                            {rupiah(t.amount)}
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex gap-2">
-                              <button
-                                title="Edit transaksi"
-                                onClick={() => {
-                                  setEditingTransaction(t.id);
-                                  setModal("transaction");
-                                }}
-                                className="rounded-lg border border-zinc-200 p-2 hover:bg-zinc-50"
-                              >
-                                <Pencil size={14} />
-                              </button>
-                              <button
-                                title="Hapus transaksi"
-                                onClick={() => removeTransaction(t.id)}
-                                className="rounded-lg border border-rose-200 p-2 text-rose-700 hover:bg-rose-50"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                            {t.direction}
+                          </Pill>
+                        </td>
+                        <td
+                          className={`whitespace-nowrap px-4 py-4 font-semibold ${t.direction === "Masuk" ? "text-emerald-700" : ""}`}
+                        >
+                          {t.direction === "Masuk" ? "+" : "−"}
+                          {rupiah(t.amount)}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex gap-2">
+                            <button
+                              title="Edit transaksi"
+                              onClick={() => {
+                                setEditingTransaction(t.id);
+                                setModal("transaction");
+                              }}
+                              className="rounded-lg border border-zinc-200 p-2 hover:bg-zinc-50"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              title="Hapus transaksi"
+                              onClick={() => removeTransaction(t.id)}
+                              className="rounded-lg border border-rose-200 p-2 text-rose-700 hover:bg-rose-50"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
                 {filteredTx.length === 0 && (
                   <Empty text="Belum ada transaksi." />
+                )}
+                {filteredTx.length > 0 && (
+                  <div className="flex flex-col gap-3 border-t border-zinc-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-zinc-500">
+                      Menampilkan{" "}
+                      {(safeTransactionPage - 1) * transactionPageSize + 1}–
+                      {Math.min(
+                        safeTransactionPage * transactionPageSize,
+                        sortedFilteredTx.length,
+                      )}{" "}
+                      dari {sortedFilteredTx.length} transaksi
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setTransactionPage((page) => Math.max(1, page - 1))
+                        }
+                        disabled={safeTransactionPage === 1}
+                        className="rounded-lg border border-zinc-200 p-0.5 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <LucideChevronLeft className="text-xs" />
+                      </button>
+                      <span className="min-w-20 text-center text-xs text-zinc-500">
+                        Halaman {safeTransactionPage} / {totalTransactionPages}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setTransactionPage((page) =>
+                            Math.min(totalTransactionPages, page + 1),
+                          )
+                        }
+                        disabled={safeTransactionPage === totalTransactionPages}
+                        className="rounded-lg border border-zinc-200 p-0.5 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <LucideChevronRight className="text-xs" />
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             </section>
@@ -2144,12 +2233,11 @@ function BookingForm({
         <Field label="Paket">
           <select
             name="packageName"
-            defaultValue={initial?.packageName || "Digital Booth"}
+            defaultValue={initial?.packageName || "Digital Only"}
           >
-            <option>Digital Booth</option>
-            <option>Print Basic</option>
-            <option>Print Premium</option>
-            <option>Custom</option>
+            <option>Digital Only</option>
+            <option>Print + Print</option>
+            <option>Mingle</option>
           </select>
         </Field>
         <Field label="Total harga (Rp) *">
@@ -2237,12 +2325,10 @@ function TransactionForm({
           >
             <option>Operasional</option>
             <option>Pembayaran booking</option>
+            <option>Subscription</option>
             <option>Pemasukan lain</option>
-            <option>Gaji crew</option>
             <option>Transportasi</option>
             <option>Perlengkapan print</option>
-            <option>Sewa alat</option>
-            <option>Subscription</option>
             <option>Maintenance</option>
             <option>Refund klien</option>
             <option>Lainnya</option>
@@ -2308,7 +2394,6 @@ function TransactionForm({
           />
         </span>
       </label>
-
       <p className="rounded-lg bg-zinc-50 p-3 text-xs text-zinc-500">
         Jangan centang untuk pengeluaran seperti transportasi, konsumsi, atau
         biaya operasional yang bukan aset.

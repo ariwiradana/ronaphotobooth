@@ -1100,6 +1100,16 @@ export default function Home() {
     ]);
   }
 
+  function navigateToTab(nextTab: Tab) {
+    setTab(nextTab);
+    setSearch("");
+    setMoreMenuOpen(false);
+    // Reset the page scroll whenever the user switches workspace tabs.
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+
   const heading: Record<Tab, string> = {
     Dashboard: "Dashboard",
     Booking: "Booking management",
@@ -1141,10 +1151,7 @@ export default function Home() {
           {nav.map((item) => (
             <button
               key={item.label}
-              onClick={() => {
-                setTab(item.label);
-                setSearch("");
-              }}
+              onClick={() => navigateToTab(item.label)}
               className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm ${tab === item.label ? "bg-zinc-950 font-medium text-white" : "text-zinc-600 hover:bg-zinc-100"}`}
             >
               <item.icon size={17} />
@@ -1299,7 +1306,7 @@ export default function Home() {
                         Ringkasan Jadwal Booking
                       </p>
                     </div>
-                    <Button secondary onClick={() => setTab("Booking")}>
+                    <Button secondary onClick={() => navigateToTab("Booking")}>
                       Lihat booking
                     </Button>
                   </div>
@@ -2656,11 +2663,7 @@ export default function Home() {
                 <button
                   key={item.label}
                   type="button"
-                  onClick={() => {
-                    setTab(item.label);
-                    setSearch("");
-                    setMoreMenuOpen(false);
-                  }}
+                  onClick={() => navigateToTab(item.label)}
                   aria-current={active ? "page" : undefined}
                   className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-[10px] font-medium transition ${active ? "text-zinc-950" : "text-zinc-500 hover:bg-zinc-50"}`}
                 >
@@ -2744,11 +2747,7 @@ export default function Home() {
                   <button
                     key={item.label}
                     type="button"
-                    onClick={() => {
-                      setTab(item.label);
-                      setSearch("");
-                      setMoreMenuOpen(false);
-                    }}
+                    onClick={() => navigateToTab(item.label)}
                     className={`flex min-w-0 flex-col items-center gap-2 rounded-2xl border p-3 text-center transition ${active ? "border-zinc-950 bg-zinc-950 text-white" : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"}`}
                   >
                     <span

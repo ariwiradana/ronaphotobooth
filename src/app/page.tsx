@@ -28,6 +28,7 @@ import {
   CircleUserRound,
   LucideChevronLeft,
   LucideChevronRight,
+  Menu,
 } from "lucide-react";
 
 type Tab =
@@ -258,6 +259,7 @@ function Empty({ text }: { text: string }) {
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>("Dashboard");
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [data, setData] = useState<State>(seed);
   const [ready, setReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState<
@@ -265,10 +267,13 @@ export default function Home() {
   >("loading");
   const [canSync, setCanSync] = useState(false);
   const [search, setSearch] = useState("");
+  const [bookingPage, setBookingPage] = useState(1);
   const [transactionDirectionFilter, setTransactionDirectionFilter] = useState<
     "Semua" | "Masuk" | "Keluar"
   >("Semua");
   const [transactionPage, setTransactionPage] = useState(1);
+  const [reimbursementPage, setReimbursementPage] = useState(1);
+  const [inventoryPage, setInventoryPage] = useState(1);
   const [modal, setModal] = useState<
     "booking" | "transaction" | "reimbursement" | "asset" | "partner" | null
   >(null);
@@ -388,10 +393,25 @@ export default function Home() {
   const inventoryValue = data.assets
     .filter((a) => a.condition !== "Dijual" && a.condition !== "Dihapus")
     .reduce((s, a) => s + a.price, 0);
+  const upcomingBookings = data.bookings
+    .filter((b) => b.status !== "Dibatalkan" && b.date >= today())
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 5);
   const filteredBookings = data.bookings.filter((b) =>
     `${b.client} ${b.event} ${b.id} ${b.packageName}`
       .toLowerCase()
       .includes(search.toLowerCase()),
+  );
+  const bookingPageSize = 10;
+  const totalBookingPages = Math.max(
+    1,
+    Math.ceil(filteredBookings.length / bookingPageSize),
+  );
+  const safeBookingPage = Math.min(bookingPage, totalBookingPages);
+  const paginatedBookings = filteredBookings.slice(
+    (safeBookingPage - 1) * bookingPageSize,
+    safeBookingPage * bookingPageSize,
   );
   const filteredTx = data.transactions.filter((t) => {
     const matchesSearch = `${t.description} ${t.category} ${t.paidBy}`
@@ -420,6 +440,29 @@ export default function Home() {
   const paginatedTx = sortedFilteredTx.slice(
     (safeTransactionPage - 1) * transactionPageSize,
     safeTransactionPage * transactionPageSize,
+  );
+  const reimbursementPageSize = 10;
+  const totalReimbursementPages = Math.max(
+    1,
+    Math.ceil(data.reimbursements.length / reimbursementPageSize),
+  );
+  const safeReimbursementPage = Math.min(
+    reimbursementPage,
+    totalReimbursementPages,
+  );
+  const paginatedReimbursements = data.reimbursements.slice(
+    (safeReimbursementPage - 1) * reimbursementPageSize,
+    safeReimbursementPage * reimbursementPageSize,
+  );
+  const inventoryPageSize = 10;
+  const totalInventoryPages = Math.max(
+    1,
+    Math.ceil(data.assets.length / inventoryPageSize),
+  );
+  const safeInventoryPage = Math.min(inventoryPage, totalInventoryPages);
+  const paginatedAssets = data.assets.slice(
+    (safeInventoryPage - 1) * inventoryPageSize,
+    safeInventoryPage * inventoryPageSize,
   );
 
   function addBooking(form: FormData) {
@@ -750,6 +793,21 @@ export default function Home() {
       ],
     }));
   }
+  function scrollToPaginationSection(
+    sectionId:
+      | "booking-list"
+      | "transaction-list"
+      | "reimbursement-list"
+      | "inventory-list",
+  ) {
+    window.requestAnimationFrame(() => {
+      document.getElementById(sectionId)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }
+
   function updateBookingStatus(bid: string, status: string) {
     setData((prev) => ({
       ...prev,
@@ -1155,7 +1213,7 @@ export default function Home() {
             ? "Data belum tersimpan ke PostgreSQL. Periksa DATABASE_URL dan migrasi database sebelum melanjutkan transaksi."
             : "Data workspace disimpan ke PostgreSQL dan digunakan bersama oleh kedua partner."}
         </div>
-        <div className="mx-auto max-w-[1440px] space-y-6 p-5 md:p-8">
+        <div className="mx-auto max-w-[1440px] space-y-6 p-5 pb-28 md:p-8 md:pb-28 lg:pb-8">
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
               <p className="text-sm text-zinc-500">{dateLabel(today())}</p>
@@ -1232,9 +1290,9 @@ export default function Home() {
                   icon={ReceiptText}
                 />
               </div>
-              <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-                <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-                  <div className="flex items-center justify-between border-b border-zinc-100 p-5">
+              <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+                <section className="min-w-0 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 p-4 sm:p-5">
                     <div>
                       <h3 className="font-semibold">Booking</h3>
                       <p className="mt-1 text-xs text-zinc-500">
@@ -1246,43 +1304,39 @@ export default function Home() {
                     </Button>
                   </div>
                   <div className="divide-y divide-zinc-100">
-                    {data.bookings
-                      .filter((b) => b.status !== "Dibatalkan")
-                      .sort((a, b) => a.date.localeCompare(b.date))
-                      .slice(0, 5)
-                      .map((b) => (
-                        <div
-                          key={b.id}
-                          className="flex flex-wrap items-center justify-between gap-3 p-4"
-                        >
-                          <div>
-                            <p className="text-sm font-medium">
-                              {b.client}{" "}
-                              <span className="text-xs text-zinc-400">
-                                · {b.id}
-                              </span>
-                            </p>
-                            <p className="mt-1 text-xs text-zinc-500">
-                              {b.event} · {dateLabel(b.date)} · {b.packageName}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-semibold">
-                              {rupiah(b.total)}
-                            </p>
-                            <p className="mt-1 text-xs text-zinc-500">
-                              Sisa {rupiah(Math.max(0, b.total - b.paid))}
-                            </p>
-                          </div>
+                    {upcomingBookings.map((b) => (
+                      <div
+                        key={b.id}
+                        className="flex flex-wrap items-center justify-between gap-3 p-4"
+                      >
+                        <div>
+                          <p className="text-sm font-medium">
+                            {b.client}{" "}
+                            <span className="text-xs text-zinc-400">
+                              · {b.id}
+                            </span>
+                          </p>
+                          <p className="mt-1 text-xs text-zinc-500">
+                            {b.event} · {dateLabel(b.date)} · {b.packageName}
+                          </p>
                         </div>
-                      ))}
-                    {data.bookings.length === 0 && (
-                      <Empty text="Belum ada booking. Tambahkan booking pertama." />
+                        <div className="text-right">
+                          <p className="text-sm font-semibold">
+                            {rupiah(b.total)}
+                          </p>
+                          <p className="mt-1 text-xs text-zinc-500">
+                            Sisa {rupiah(Math.max(0, b.total - b.paid))}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                    {upcomingBookings.length === 0 && (
+                      <Empty text="Tidak ada booking mendatang." />
                     )}
                   </div>
                 </section>
-                <section className="rounded-2xl border border-zinc-200 bg-white shadow-sm">
-                  <div className="border-b border-zinc-100 p-5">
+                <section className="min-w-0 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+                  <div className="border-b border-zinc-100 p-4 sm:p-5">
                     <h3 className="font-semibold">Transaksi terbaru</h3>
                     <p className="mt-1 text-xs text-zinc-500">
                       Kas masuk dan keluar
@@ -1290,12 +1344,24 @@ export default function Home() {
                   </div>
                   <div className="divide-y divide-zinc-100">
                     {data.transactions
-                      .slice(-5)
-                      .reverse()
+                      .slice()
+                      .sort((a, b) => {
+                        const dateOrder = String(b.date || "").localeCompare(
+                          String(a.date || ""),
+                        );
+                        if (dateOrder !== 0) return dateOrder;
+                        return String(b.id || "").localeCompare(
+                          String(a.id || ""),
+                        );
+                      })
+                      .slice(0, 5)
                       .map((t) => (
-                        <div key={t.id} className="flex items-center gap-3 p-4">
+                        <div
+                          key={t.id}
+                          className="flex min-w-0 items-center gap-2 p-3 sm:gap-3 sm:p-4"
+                        >
                           <div
-                            className={`rounded-xl p-2.5 ${t.direction === "Masuk" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}
+                            className={`shrink-0 rounded-xl p-2 sm:p-2.5 ${t.direction === "Masuk" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}
                           >
                             {t.direction === "Masuk" ? (
                               <ArrowDownLeft size={17} />
@@ -1312,7 +1378,7 @@ export default function Home() {
                             </p>
                           </div>
                           <p
-                            className={`whitespace-nowrap text-sm font-semibold ${t.direction === "Masuk" ? "text-emerald-700" : ""}`}
+                            className={`shrink-0 whitespace-nowrap text-xs font-semibold sm:text-sm ${t.direction === "Masuk" ? "text-emerald-700" : ""}`}
                           >
                             {t.direction === "Masuk" ? "+" : "−"}
                             {rupiah(t.amount)}
@@ -1349,7 +1415,10 @@ export default function Home() {
           )}
 
           {tab === "Booking" && (
-            <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+            <section
+              id="booking-list"
+              className="scroll-mt-4 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm"
+            >
               <div className="flex flex-col gap-3 border-b border-zinc-100 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h3 className="font-semibold">Daftar booking</h3>
@@ -1359,15 +1428,16 @@ export default function Home() {
                 </div>
                 <div className="relative w-full sm:max-w-xs">
                   <Search
-                    className="absolute left-3 top-3 text-zinc-400"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400"
                     size={16}
                   />
                   <input
-                    className="pl-9"
+                    className="pr-9"
                     placeholder="Cari klien, event, kode..."
                     value={search}
                     onChange={(e) => {
                       setSearch(e.target.value);
+                      setBookingPage(1);
                       setTransactionPage(1);
                     }}
                   />
@@ -1376,7 +1446,96 @@ export default function Home() {
                   <Download size={15} /> CSV
                 </Button>
               </div>
-              <div className="overflow-x-auto">
+              <div className="divide-y divide-zinc-100 md:hidden">
+                {paginatedBookings.map((b) => (
+                  <article key={b.id} className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words text-sm font-semibold text-zinc-900">
+                          {b.client}
+                        </p>
+                        <p className="mt-1 break-words text-xs text-zinc-500">
+                          {b.event} · {b.id}
+                        </p>
+                        <p className="mt-1 break-words text-xs text-zinc-400">
+                          {b.phone || "Tanpa nomor telepon"}
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-right text-sm font-semibold">
+                        {rupiah(b.total)}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <p className="text-zinc-500">Tanggal event</p>
+                        <p className="mt-1 break-words font-medium">
+                          {dateLabel(b.date)}
+                        </p>
+                        <p className="mt-1 break-words text-zinc-400">
+                          {b.venue}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-zinc-500">Paket</p>
+                        <p className="mt-1 break-words font-medium">
+                          {b.packageName}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-zinc-500">Dibayar</p>
+                        <p className="mt-1 font-medium">{rupiah(b.paid)}</p>
+                      </div>
+                      <div>
+                        <p className="text-zinc-500">Sisa</p>
+                        <p className="mt-1 font-medium">
+                          {rupiah(Math.max(0, b.total - b.paid))}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-3">
+                      <div>
+                        <select
+                          aria-label="Status booking"
+                          value={b.status}
+                          onChange={(e) =>
+                            updateBookingStatus(b.id, e.target.value)
+                          }
+                          className="min-w-0 text-xs"
+                        >
+                          <option>Inquiry</option>
+                          <option>Penawaran</option>
+                          <option>Dikonfirmasi</option>
+                          <option>Selesai</option>
+                          <option>Dibatalkan</option>
+                        </select>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          title="Edit booking"
+                          onClick={() => {
+                            setEditingBooking(b.id);
+                            setModal("booking");
+                          }}
+                          className="rounded-lg border border-zinc-200 p-2 hover:bg-zinc-50"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          title="Hapus booking"
+                          onClick={() => removeBooking(b.id)}
+                          className="rounded-lg border border-zinc-200 p-2 text-rose-600 hover:bg-rose-50"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+                {filteredBookings.length === 0 && (
+                  <Empty text="Booking tidak ditemukan." />
+                )}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[900px] text-left text-sm">
                   <thead className="bg-zinc-50 text-xs text-zinc-500">
                     <tr>
@@ -1396,7 +1555,7 @@ export default function Home() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredBookings.map((b) => (
+                    {paginatedBookings.map((b) => (
                       <tr key={b.id} className="border-t border-zinc-100">
                         <td className="px-4 py-4">
                           <p className="font-medium">{b.client}</p>
@@ -1468,11 +1627,57 @@ export default function Home() {
                   <Empty text="Booking tidak ditemukan." />
                 )}
               </div>
+              {filteredBookings.length > 0 && (
+                <div className="flex flex-col items-center gap-3 border-t border-zinc-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-center text-xs text-zinc-500 sm:text-left">
+                    Menampilkan {(safeBookingPage - 1) * bookingPageSize + 1}–
+                    {Math.min(
+                      safeBookingPage * bookingPageSize,
+                      filteredBookings.length,
+                    )}{" "}
+                    dari {filteredBookings.length} booking
+                  </p>
+                  <div className="flex items-center justify-center gap-2 self-center sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBookingPage((page) => Math.max(1, page - 1));
+                        scrollToPaginationSection("booking-list");
+                      }}
+                      disabled={safeBookingPage === 1}
+                      className="rounded-lg border border-zinc-200 p-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Halaman booking sebelumnya"
+                    >
+                      <LucideChevronLeft size={16} />
+                    </button>
+                    <span className="min-w-24 text-center text-xs text-zinc-500">
+                      Halaman {safeBookingPage} / {totalBookingPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBookingPage((page) =>
+                          Math.min(totalBookingPages, page + 1),
+                        );
+                        scrollToPaginationSection("booking-list");
+                      }}
+                      disabled={safeBookingPage === totalBookingPages}
+                      className="rounded-lg border border-zinc-200 p-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Halaman booking berikutnya"
+                    >
+                      <LucideChevronRight size={16} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </section>
           )}
 
           {tab === "Kas & Transaksi" && (
-            <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+            <section
+              id="transaction-list"
+              className="scroll-mt-4 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm"
+            >
               <div className="flex flex-col gap-3 border-b border-zinc-100 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h3 className="font-semibold">Ledger kas</h3>
@@ -1498,11 +1703,11 @@ export default function Home() {
                   </select>
                   <div className="relative w-full sm:w-64">
                     <Search
-                      className="absolute left-3 top-3 text-zinc-400"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400"
                       size={16}
                     />
                     <input
-                      className="pl-9"
+                      className="pr-9"
                       placeholder="Cari transaksi..."
                       value={search}
                       onChange={(e) => {
@@ -1513,7 +1718,87 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-              <div className="overflow-x-auto">
+              <div className="divide-y divide-zinc-100 md:hidden">
+                {paginatedTx.map((t) => (
+                  <article key={t.id} className="space-y-3 p-4">
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`mt-0.5 shrink-0 rounded-xl p-2 ${t.direction === "Masuk" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}
+                      >
+                        {t.direction === "Masuk" ? (
+                          <ArrowDownLeft size={16} />
+                        ) : (
+                          <ArrowUpRight size={16} />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words text-sm font-semibold leading-5 text-zinc-900">
+                          {t.description || "Tanpa deskripsi"}
+                        </p>
+                        <p className="mt-1 break-words text-xs text-zinc-500">
+                          {dateLabel(t.date)} · {t.category}
+                        </p>
+                      </div>
+                      <p
+                        className={`shrink-0 max-w-[46%] break-words text-right text-sm font-semibold ${t.direction === "Masuk" ? "text-emerald-700" : "text-zinc-900"}`}
+                      >
+                        {t.direction === "Masuk" ? "+" : "−"}
+                        {rupiah(t.amount)}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-3 items-start gap-2 rounded-xl bg-zinc-50 p-3 text-xs">
+                      <div>
+                        <p className="text-zinc-500">Sumber</p>
+                        <p className="mt-1 break-words font-medium">
+                          {t.paidBy}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-zinc-500">Arah</p>
+                        <div className="mt-1">
+                          <Pill
+                            tone={t.direction === "Masuk" ? "green" : "red"}
+                          >
+                            {t.direction}
+                          </Pill>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-zinc-500">Akun</p>
+                        <p className="mt-1 break-words">
+                          {t.account}
+                          {t.affectsCash === false
+                            ? " · Tidak memengaruhi saldo kas (dibayar pribadi)"
+                            : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        title="Edit transaksi"
+                        onClick={() => {
+                          setEditingTransaction(t.id);
+                          setModal("transaction");
+                        }}
+                        className="rounded-lg border border-zinc-200 p-2 hover:bg-zinc-50"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        title="Hapus transaksi"
+                        onClick={() => removeTransaction(t.id)}
+                        className="rounded-lg border border-rose-200 p-2 text-rose-700 hover:bg-rose-50"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </article>
+                ))}
+                {filteredTx.length === 0 && (
+                  <Empty text="Belum ada transaksi." />
+                )}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[800px] text-left text-sm">
                   <thead className="bg-zinc-50 text-xs text-zinc-500">
                     <tr>
@@ -1521,7 +1806,7 @@ export default function Home() {
                         "Tanggal",
                         "Deskripsi",
                         "Kategori",
-                        "Pembayar / sumber",
+                        "Sumber",
                         "Arah",
                         "Nominal",
                         "Aksi",
@@ -1592,52 +1877,57 @@ export default function Home() {
                 {filteredTx.length === 0 && (
                   <Empty text="Belum ada transaksi." />
                 )}
-                {filteredTx.length > 0 && (
-                  <div className="flex flex-col gap-3 border-t border-zinc-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-xs text-zinc-500">
-                      Menampilkan{" "}
-                      {(safeTransactionPage - 1) * transactionPageSize + 1}–
-                      {Math.min(
-                        safeTransactionPage * transactionPageSize,
-                        sortedFilteredTx.length,
-                      )}{" "}
-                      dari {sortedFilteredTx.length} transaksi
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setTransactionPage((page) => Math.max(1, page - 1))
-                        }
-                        disabled={safeTransactionPage === 1}
-                        className="rounded-lg border border-zinc-200 p-0.5 text-xs disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        <LucideChevronLeft className="text-xs" />
-                      </button>
-                      <span className="min-w-20 text-center text-xs text-zinc-500">
-                        Halaman {safeTransactionPage} / {totalTransactionPages}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setTransactionPage((page) =>
-                            Math.min(totalTransactionPages, page + 1),
-                          )
-                        }
-                        disabled={safeTransactionPage === totalTransactionPages}
-                        className="rounded-lg border border-zinc-200 p-0.5 text-xs disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        <LucideChevronRight className="text-xs" />
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
+              {filteredTx.length > 0 && (
+                <div className="flex flex-col items-center gap-3 border-t border-zinc-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-center text-xs text-zinc-500 sm:text-left">
+                    Menampilkan{" "}
+                    {(safeTransactionPage - 1) * transactionPageSize + 1}–
+                    {Math.min(
+                      safeTransactionPage * transactionPageSize,
+                      sortedFilteredTx.length,
+                    )}{" "}
+                    dari {sortedFilteredTx.length} transaksi
+                  </p>
+                  <div className="flex items-center justify-center gap-2 self-center sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTransactionPage((page) => Math.max(1, page - 1));
+                        scrollToPaginationSection("transaction-list");
+                      }}
+                      disabled={safeTransactionPage === 1}
+                      className="rounded-lg border border-zinc-200 p-0.5 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <LucideChevronLeft className="text-xs" />
+                    </button>
+                    <span className="min-w-20 text-center text-xs text-zinc-500">
+                      Halaman {safeTransactionPage} / {totalTransactionPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTransactionPage((page) =>
+                          Math.min(totalTransactionPages, page + 1),
+                        );
+                        scrollToPaginationSection("transaction-list");
+                      }}
+                      disabled={safeTransactionPage === totalTransactionPages}
+                      className="rounded-lg border border-zinc-200 p-0.5 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <LucideChevronRight className="text-xs" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </section>
           )}
 
           {tab === "Reimburse" && (
-            <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+            <section
+              id="reimbursement-list"
+              className="scroll-mt-4 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm"
+            >
               <div className="border-b border-zinc-100 p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -1650,7 +1940,113 @@ export default function Home() {
                   <Pill tone="amber">{rupiah(outstanding)} belum dibayar</Pill>
                 </div>
               </div>
-              <div className="overflow-x-auto">
+              <div className="divide-y divide-zinc-100 md:hidden">
+                {paginatedReimbursements.map((r) => (
+                  <article key={r.id} className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words text-sm font-semibold text-zinc-900">
+                          {r.description}
+                        </p>
+                        <p className="mt-1 break-words text-xs text-zinc-500">
+                          {r.partner} · {r.id}
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-400">
+                          {dateLabel(r.date)} · {r.type}
+                        </p>
+                      </div>
+                      <Pill
+                        tone={
+                          r.status === "Lunas"
+                            ? "green"
+                            : r.status === "Ditolak"
+                              ? "red"
+                              : r.status === "Menunggu"
+                                ? "amber"
+                                : "blue"
+                        }
+                      >
+                        {r.status}
+                      </Pill>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 rounded-xl bg-zinc-50 p-3 text-xs">
+                      <div>
+                        <p className="text-zinc-500">Total reimburse</p>
+                        <p className="mt-1 break-words font-semibold text-zinc-900">
+                          {rupiah(r.amount)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-zinc-500">Sudah dibayar</p>
+                        <p className="mt-1 break-words font-semibold text-zinc-900">
+                          {rupiah(r.paid)}
+                        </p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-zinc-500">Sisa pembayaran</p>
+                        <p className="mt-1 break-words font-medium">
+                          {rupiah(Math.max(0, r.amount - r.paid))}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-3">
+                      {r.status === "Menunggu" && (
+                        <button
+                          onClick={() =>
+                            setData((prev) => ({
+                              ...prev,
+                              reimbursements: prev.reimbursements.map((x) =>
+                                x.id === r.id
+                                  ? { ...x, status: "Disetujui" }
+                                  : x,
+                              ),
+                            }))
+                          }
+                          className="inline-flex h-8 items-center justify-center rounded-lg border border-zinc-200 px-3 text-xs font-medium hover:bg-zinc-50"
+                        >
+                          <span className="text-sm">Setujui</span>
+                        </button>
+                      )}
+                      {r.status !== "Lunas" && r.status !== "Ditolak" && (
+                        <button
+                          onClick={() => {
+                            const remain = r.amount - r.paid;
+                            const input = prompt(
+                              `Nominal pembayaran (sisa ${rupiah(remain)}):`,
+                              String(remain),
+                            );
+                            if (input !== null && Number(input) > 0)
+                              payReimbursement(r.id, Number(input));
+                          }}
+                          className="inline-flex h-8 items-center justify-center rounded-lg bg-zinc-950 px-3 text-xs font-medium text-white"
+                        >
+                          <span className="text-sm">Bayar</span>
+                        </button>
+                      )}
+                      <button
+                        title="Edit reimburse"
+                        onClick={() => editReimbursement(r)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 hover:bg-zinc-50"
+                        aria-label={`Edit reimburse ${r.id}`}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        title="Hapus reimburse"
+                        onClick={() => removeReimbursement(r.id)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50"
+                        aria-label={`Hapus reimburse ${r.id}`}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </article>
+                ))}
+                {data.reimbursements.length === 0 && (
+                  <Empty text="Belum ada reimburse." />
+                )}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[800px] text-left text-sm">
                   <thead className="bg-zinc-50 text-xs text-zinc-500">
                     <tr>
@@ -1671,7 +2067,7 @@ export default function Home() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.reimbursements.map((r) => (
+                    {paginatedReimbursements.map((r) => (
                       <tr key={r.id} className="border-t border-zinc-100">
                         <td className="whitespace-nowrap px-4 py-4">
                           {dateLabel(r.date)}
@@ -1721,7 +2117,7 @@ export default function Home() {
                                     ),
                                   }))
                                 }
-                                className="rounded-lg border border-zinc-200 px-2 py-1.5 text-xs hover:bg-zinc-50"
+                                className="inline-flex h-8 items-center justify-center rounded-lg border border-zinc-200 px-2 text-xs hover:bg-zinc-50"
                               >
                                 Setujui
                               </button>
@@ -1737,7 +2133,7 @@ export default function Home() {
                                   if (input !== null && Number(input) > 0)
                                     payReimbursement(r.id, Number(input));
                                 }}
-                                className="rounded-lg bg-zinc-950 px-2 py-1.5 text-xs text-white"
+                                className="inline-flex h-8 items-center justify-center rounded-lg bg-zinc-950 px-2 text-xs text-white"
                               >
                                 Bayar
                               </button>
@@ -1745,7 +2141,7 @@ export default function Home() {
                             <button
                               title="Edit reimburse"
                               onClick={() => editReimbursement(r)}
-                              className="rounded-lg border border-zinc-200 p-1.5 hover:bg-zinc-50"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 hover:bg-zinc-50"
                               aria-label={`Edit reimburse ${r.id}`}
                             >
                               <Pencil size={14} />
@@ -1753,7 +2149,7 @@ export default function Home() {
                             <button
                               title="Hapus reimburse"
                               onClick={() => removeReimbursement(r.id)}
-                              className="rounded-lg border border-rose-200 p-1.5 text-rose-700 hover:bg-rose-50"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50"
                               aria-label={`Hapus reimburse ${r.id}`}
                             >
                               <Trash2 size={14} />
@@ -1768,6 +2164,53 @@ export default function Home() {
                   <Empty text="Belum ada reimburse." />
                 )}
               </div>
+              {data.reimbursements.length > 0 && (
+                <div className="flex flex-col items-center gap-3 border-t border-zinc-100 px-4 py-3 sm:flex-row sm:justify-between">
+                  <p className="text-center text-xs text-zinc-500 sm:text-left">
+                    Menampilkan{" "}
+                    {(safeReimbursementPage - 1) * reimbursementPageSize + 1}–
+                    {Math.min(
+                      safeReimbursementPage * reimbursementPageSize,
+                      data.reimbursements.length,
+                    )}{" "}
+                    dari {data.reimbursements.length} reimburse
+                  </p>
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReimbursementPage((page) => Math.max(1, page - 1));
+                        scrollToPaginationSection("reimbursement-list");
+                      }}
+                      disabled={safeReimbursementPage === 1}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Halaman reimburse sebelumnya"
+                    >
+                      <LucideChevronLeft size={16} />
+                    </button>
+                    <span className="min-w-24 text-center text-xs text-zinc-500">
+                      Halaman {safeReimbursementPage} /{" "}
+                      {totalReimbursementPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReimbursementPage((page) =>
+                          Math.min(totalReimbursementPages, page + 1),
+                        );
+                        scrollToPaginationSection("reimbursement-list");
+                      }}
+                      disabled={
+                        safeReimbursementPage === totalReimbursementPages
+                      }
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Halaman reimburse berikutnya"
+                    >
+                      <LucideChevronRight size={16} />
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="border-t border-zinc-100 bg-zinc-50/70 p-4 text-xs leading-5 text-zinc-500">
                 Pembayaran reimburse dicatat sebagai arus kas keluar dan
                 mengurangi saldo kewajiban. Nilai pembelian aset tidak dihitung
@@ -1777,7 +2220,10 @@ export default function Home() {
           )}
 
           {tab === "Inventaris" && (
-            <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+            <section
+              id="inventory-list"
+              className="scroll-mt-4 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm"
+            >
               <div className="flex items-center justify-between border-b border-zinc-100 p-5">
                 <div>
                   <h3 className="font-semibold">Inventaris Rona</h3>
@@ -1788,7 +2234,70 @@ export default function Home() {
                 </div>
                 <Package className="text-zinc-400" size={20} />
               </div>
-              <div className="overflow-x-auto">
+              <div className="divide-y divide-zinc-100 md:hidden">
+                {paginatedAssets.map((a) => (
+                  <article key={a.id} className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words text-sm font-semibold text-zinc-900">
+                          {a.name}
+                        </p>
+                        <p className="mt-1 break-words text-xs text-zinc-500">
+                          {a.id} · {a.category}
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-400">
+                          Aset milik Rona · {dateLabel(a.date)}
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-right text-sm font-semibold">
+                        {rupiah(a.price)}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 rounded-xl bg-zinc-50 p-3 text-xs">
+                      <div>
+                        <p className="text-zinc-500">Dibeli oleh</p>
+                        <p className="mt-1 break-words font-medium text-zinc-900">
+                          {a.paidBy}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-zinc-500">Kondisi</p>
+                        <p className="mt-1 break-words font-medium text-zinc-900">
+                          {a.condition}
+                        </p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-zinc-500">Lokasi penyimpanan</p>
+                        <p className="mt-1 break-words font-medium text-zinc-900">
+                          {a.location || "-"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 border-t border-zinc-100 pt-3">
+                      <button
+                        title="Edit aset"
+                        onClick={() => editAsset(a)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 hover:bg-zinc-50"
+                        aria-label={`Edit aset ${a.name}`}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        title="Hapus aset"
+                        onClick={() => removeAsset(a.id)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50"
+                        aria-label={`Hapus aset ${a.name}`}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </article>
+                ))}
+                {data.assets.length === 0 && (
+                  <Empty text="Belum ada aset. Tambahkan pembelian aset pertama." />
+                )}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[800px] text-left text-sm">
                   <thead className="bg-zinc-50 text-xs text-zinc-500">
                     <tr>
@@ -1809,7 +2318,7 @@ export default function Home() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.assets.map((a) => (
+                    {paginatedAssets.map((a) => (
                       <tr key={a.id} className="border-t border-zinc-100">
                         <td className="px-4 py-4 text-xs text-zinc-500">
                           {a.id}
@@ -1843,7 +2352,7 @@ export default function Home() {
                           <button
                             title="Edit aset"
                             onClick={() => editAsset(a)}
-                            className="mr-2 rounded-lg border border-zinc-200 p-2 hover:bg-zinc-50"
+                            className="mr-2 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 hover:bg-zinc-50"
                             aria-label={`Edit aset ${a.name}`}
                           >
                             <Pencil size={14} />
@@ -1865,6 +2374,50 @@ export default function Home() {
                   <Empty text="Belum ada aset. Tambahkan pembelian aset pertama." />
                 )}
               </div>
+              {data.assets.length > 0 && (
+                <div className="flex flex-col items-center gap-3 border-t border-zinc-100 px-4 py-3 sm:flex-row sm:justify-between">
+                  <p className="text-center text-xs text-zinc-500 sm:text-left">
+                    Menampilkan{" "}
+                    {(safeInventoryPage - 1) * inventoryPageSize + 1}–
+                    {Math.min(
+                      safeInventoryPage * inventoryPageSize,
+                      data.assets.length,
+                    )}{" "}
+                    dari {data.assets.length} aset
+                  </p>
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInventoryPage((page) => Math.max(1, page - 1));
+                        scrollToPaginationSection("inventory-list");
+                      }}
+                      disabled={safeInventoryPage === 1}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Halaman inventaris sebelumnya"
+                    >
+                      <LucideChevronLeft size={16} />
+                    </button>
+                    <span className="min-w-24 text-center text-xs text-zinc-500">
+                      Halaman {safeInventoryPage} / {totalInventoryPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInventoryPage((page) =>
+                          Math.min(totalInventoryPages, page + 1),
+                        );
+                        scrollToPaginationSection("inventory-list");
+                      }}
+                      disabled={safeInventoryPage === totalInventoryPages}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Halaman inventaris berikutnya"
+                    >
+                      <LucideChevronRight size={16} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </section>
           )}
 
@@ -2072,6 +2625,151 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        {/* Mobile bottom navigation */}
+        <nav
+          aria-label="Navigasi utama mobile"
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200 bg-white/95 px-2 pt-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_24px_rgba(0,0,0,0.06)] backdrop-blur lg:hidden"
+        >
+          <div className="mx-auto grid max-w-lg grid-cols-5 gap-1">
+            {[
+              {
+                label: "Dashboard" as Tab,
+                short: "Home",
+                icon: LayoutDashboard,
+              },
+              { label: "Booking" as Tab, short: "Booking", icon: CalendarDays },
+              {
+                label: "Kas & Transaksi" as Tab,
+                short: "Transaksi",
+                icon: Wallet,
+              },
+              {
+                label: "Laporan" as Tab,
+                short: "Laporan",
+                icon: ChartNoAxesCombined,
+              },
+            ].map((item) => {
+              const Icon = item.icon;
+              const active = tab === item.label;
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => {
+                    setTab(item.label);
+                    setSearch("");
+                    setMoreMenuOpen(false);
+                  }}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-[10px] font-medium transition ${active ? "text-zinc-950" : "text-zinc-500 hover:bg-zinc-50"}`}
+                >
+                  <span
+                    className={`flex h-7 w-10 items-center justify-center rounded-full ${active ? "bg-zinc-950 text-white" : "text-zinc-500"}`}
+                  >
+                    <Icon size={18} strokeWidth={active ? 2.3 : 1.8} />
+                  </span>
+                  <span className="truncate text-sm">{item.short}</span>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setMoreMenuOpen((open) => !open)}
+              aria-expanded={moreMenuOpen}
+              aria-label="Buka menu lainnya"
+              className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-[10px] font-medium transition ${moreMenuOpen || ["Reimburse", "Inventaris", "Partner & Modal"].includes(tab) ? "text-zinc-950" : "text-zinc-500 hover:bg-zinc-50"}`}
+            >
+              <span
+                className={`flex h-7 w-10 items-center justify-center rounded-full ${moreMenuOpen || ["Reimburse", "Inventaris", "Partner & Modal"].includes(tab) ? "bg-zinc-950 text-white" : "text-zinc-500"}`}
+              >
+                {moreMenuOpen ? <X size={18} /> : <Menu size={18} />}
+              </span>
+              <span className="text-sm">Lainnya</span>
+            </button>
+          </div>
+        </nav>
+
+        <div
+          className={`fixed inset-0 z-50 flex items-end bg-black/30 transition-opacity duration-300 ease-out lg:hidden ${moreMenuOpen ? "visible opacity-100" : "invisible pointer-events-none opacity-0 delay-100"}`}
+          onClick={() => setMoreMenuOpen(false)}
+          aria-hidden={!moreMenuOpen}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu lainnya"
+            className={`w-full rounded-t-3xl border border-zinc-200 bg-white px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] shadow-2xl transition-transform duration-300 ease-out ${moreMenuOpen ? "translate-y-0" : "translate-y-full"}`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-zinc-200" />
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-zinc-900">Menu lainnya</h3>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Pilih modul yang ingin dibuka
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMoreMenuOpen(false)}
+                className="rounded-full p-2 text-zinc-500 hover:bg-zinc-100"
+                aria-label="Tutup menu"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                {
+                  label: "Reimburse" as Tab,
+                  icon: ReceiptText,
+                  description: "Penggantian dana",
+                },
+                {
+                  label: "Inventaris" as Tab,
+                  icon: Package,
+                  description: "Aset Rona",
+                },
+                {
+                  label: "Partner & Modal" as Tab,
+                  icon: Users,
+                  description: "Modal & kontribusi",
+                  shortLabel: "Partner",
+                },
+              ].map((item) => {
+                const Icon = item.icon;
+                const active = tab === item.label;
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => {
+                      setTab(item.label);
+                      setSearch("");
+                      setMoreMenuOpen(false);
+                    }}
+                    className={`flex min-w-0 flex-col items-center gap-2 rounded-2xl border p-3 text-center transition ${active ? "border-zinc-950 bg-zinc-950 text-white" : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"}`}
+                  >
+                    <span
+                      className={`rounded-xl p-2 ${active ? "bg-white/10" : "bg-zinc-100"}`}
+                    >
+                      <Icon size={20} />
+                    </span>
+                    <span className="text-xs font-semibold leading-tight">
+                      {"shortLabel" in item ? item.shortLabel : item.label}
+                    </span>
+                    <span
+                      className={`text-[10px] leading-tight ${active ? "text-zinc-300" : "text-zinc-500"}`}
+                    >
+                      {item.description}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
       </main>
 
       {modal && (
@@ -2156,18 +2854,6 @@ export default function Home() {
           </div>
         </div>
       )}
-      <div className="fixed bottom-4 right-4 z-40 lg:hidden">
-        <select
-          aria-label="Navigasi"
-          value={tab}
-          onChange={(e) => setTab(e.target.value as Tab)}
-          className="w-48 rounded-xl border border-zinc-300 bg-white shadow-lg"
-        >
-          {nav.map((n) => (
-            <option key={n.label}>{n.label}</option>
-          ))}
-        </select>
-      </div>
     </div>
   );
 }

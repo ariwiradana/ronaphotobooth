@@ -120,21 +120,7 @@ const seed: State = {
     { id: "p2", name: "Partner 2" },
   ],
 
-  bookings: [
-    {
-      id: "RNA-001",
-      client: "Contoh Klien",
-      phone: "",
-      event: "Event",
-      date: "",
-      venue: "",
-      packageName: "Digital Only",
-      total: 0,
-      paid: 0,
-      status: "Inquiry",
-      notes: "",
-    },
-  ],
+  bookings: [],
 
   transactions: [],
 
